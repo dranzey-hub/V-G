@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>G</title>
+</head>
+
+
+<body style="user-select: none;">
+
+    <div id='game-container'>
+        <canvas id='canvas' width="800" height="600"   style="border-style: none;" ></canvas>
+    </div>
+
+    <span>mass</span>
+    <input id='input_mass' type='range' style="width:500px; outline: none;" min='1' max='5000' value='10' onchange='onInputMassChange()'>
+    <label id='input_mass_label' for='input_mass'>10</label>
+    <input id='input_impulse' type='checkbox' >
+
+
+
+
+
+<script>
+    
+"use strict";
+//  vars
+var canvas = document.getElementById('canvas');
+var ctx = canvas.getContext('2d');
+
+var fps = 80;
+var mouse = {x:0, y:0};
+
+var pause = false;
+
+//Gravitational constant
+const G = 0.025;//0.0000000000666;
+//Friction coeficient
+const miu = 1;//.999999;
+
+var g_ON = true;
+
+var input_mass =    document.getElementById('input_mass');
+var input_impulse = document.getElementById('input_impulse');
+
+var ghost_matter;
+var ghost_matter_initial;
+
+//adapt canvas to screen
+canvas.width = window.innerWidth-30;
+canvas.height = window.innerHeight-100;
+
+
+var scale = 1;
+
+var pov = {x:0, y:0}; 
+
+var shft = false;
+
+//Astronomical objects
+var A = [];
+A.push(new Matter(canvas.width/2-89, canvas.height/2-100, 40));
+A.push(new Matter(canvas.width/2+95, canvas.height/2+120, 20));
+A.push(new Matter(canvas.width/2,    canvas.height/2,    20));
+A.push(new Matter(canvas.width/2-56, canvas.height/2,    2500));
+
+
+
+
+
+
+
+
+
+
+/*
+    Game engine
+
+  */
+
+function update()
+{
+    /*if(shft)
+        { [pov.x, pov.y] = [mouse.x, mouse.y]; }*/
+
+    if(!pause)
+    {
+        if(g_ON)gravity();
+        for(let a of A){
+            a.update();
+        }
+    }
+    if(ghost_matter)
+            ghost_matter.update();
+}
+
+function draw()
+{//console.log('draw() - '+Date.now());
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    /*ctx.beginPath();
+    ctx.rect(0,0,canvas.width, canvas.height);
+    ctx.stroke();*/
+
+    for(let a of A){
+        a.draw();
+    }
+    if(ghost_matter)
+        ghost_matter.draw();
+}
+
+
+function game()
+{
+    update();
+    draw();
+}
+
+setInterval(game, fps/1000);
+
+
+
+
+
+// ===========================
+
+
+
+
+
+function gravity()  //TODO: 2+ arrays check
+{
+    for (let i=0; i < A.length-1; i++)
+    {
+        for (let j=i+1; j < A.length; j++) 
+        {
+            //constraint distance to make it work in our pixel map, otherwise distances become either too large or too small to work here, thanks @The Coding Train!
+            let d = distance(A[i], A[j]);
+            if      (d>800) d = 800;
+            else if (d<25)  d = 25;
+            
+            let force = (G * A[i].mass * A[j].mass) / Math.pow(d, 2);
+            //let force = .5;  //[!] const force is for something more like a swarn of bees, #useful
+            
+            //angles
+            let angle1 = angleAtoB(A[i], A[j]);
+            //let angle2 = angleAtoB(A[j], A[i]);
+            //#efficiencia angle2 = angle1 + 180 for degs or + Pi for rads
+            //Same thing with forces, we can just apply the opposite of one force to the other object instead of using 2 angles
+            /*A[i].fX += Math.cos(angle1) * force;
+            A[i].fY += Math.sin(angle1) * force;   
+            
+            A[j].fX += Math.cos(angle1+Math.PI) * force;
+            A[j].fY += Math.sin(angle1+Math.PI) * force;*/
+
+            let fx = Math.cos(angle1) * force;
+            let fy = Math.sin(angle1) * force;
+
+            A[i].fX += fx; A[i].fY += fy;
+            A[j].fX -= fx; A[j].fY -= fy;
+        }
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+/*  
+    utils
+
+  */
+
+
+//  General
+
+function write(text, x, y)
+{
+    ctx.fillText(text, x, y);
+}
+
+//  distance between 2 objects that possess properties x,y
+function distance(a, b)
+{
+    return Math.sqrt((b.x-a.x)*(b.x-a.x) + (a.y-b.y)*(a.y-b.y));
+}
+
+//  angle in radians
+function angleAtoB(a, b)
+{
+    return Math.atan2(a.y-b.y, b.x-a.x);
+}
+
+
+
+//  Local
+
+function onUp()
+{
+    input_mass.value=+input_mass.value+10;
+    if(input_mass.value > 5000) 
+        input_mass.value = 5000;
+    else{
+        onInputMassChange();
+        if(ghost_matter){
+            ghost_matter.updateMass(input_mass.value);
+        }
+    }
+}
+
+function onDown()
+{
+    input_mass.value-=10;
+    if(input_mass.value < 1) 
+        input_mass.value = 1;
+    else{
+        onInputMassChange();
+        if(ghost_matter){
+            ghost_matter.updateMass(input_mass.value);
+        }
+    }
+}
+
+function zoomOut()
+{
+    if(scale > 0.1)
+    {
+        scale -= 0.05;console.log(scale)
+        pov.x = mouse.x; pov.y = mouse.y;
+    }
+}
+
+function zoomIn()
+{
+    if(scale < 5)
+    {
+        scale += 0.05;console.log(scale)
+        pov.x = mouse.x; pov.y = mouse.y;
+    }
+}
+
+/*
+function reScale(x, y, a=null)
+{
+    if(a)
+    {
+        //get distances
+        let dx = a.x - x;
+        let dy = a.y - y;
+
+        //re scale distances
+        a.x = x + dx*scale;
+        a.y = y + dy*scale;
+
+        //re scale mass
+        //a.mass = a.mass * scale;
+
+        a.scaleMass();
+    }
+    else{
+        for(let a of A)
+        {
+            reScale(x, y, a);
+        }
+    }
+    
+}*/
+
+
+
+
+
+
+
+/*  
+    listen
+
+    */
+
+document.addEventListener('mousemove', onMouseMove);
+document.addEventListener('keydown', onKeyDown);
+document.addEventListener('keyup', onKeyUp);
+//canvas.addEventListener('click', onClick);
+canvas.addEventListener('mousedown', onMouseDown);
+canvas.addEventListener('mouseup', onMouseUp);
+canvas.addEventListener('wheel', onMouseWheel)
+
+
+function onMouseMove(e)
+{
+    let rect = canvas.getBoundingClientRect();
+    mouse.x = e.clientX - rect.left;
+    mouse.y = e.clientY - rect.top;
+}
+/*
+function onClick(e)
+{
+    //A.push(new Matter(mouse.x, mouse.y, input_mass.value));
+}*/
+
+function onMouseDown(e)
+{
+    ghost_matter = new GhostMatter(mouse.x, mouse.y, input_mass.value);
+    ghost_matter_initial = {x:mouse.x, y:mouse.y};
+}
+
+function onMouseUp(e)
+{
+    if(ghost_matter)
+    {
+        if(input_impulse.checked)
+        {                                                                                   //  scale force
+            let d = distance(ghost_matter_initial, ghost_matter) / 200 * ghost_matter.mass    / scale;
+            let a = angleAtoB(ghost_matter_initial, ghost_matter);
+            A.push(new Matter((ghost_matter.x-pov.x)/scale +pov.x, (ghost_matter.y-pov.y)/scale +pov.y, ghost_matter.mass, Math.cos(a)*d, Math.sin(a)*d));
+        }
+        else{
+            //A.push(new Matter(ghost_matter.x, ghost_matter.y, ghost_matter.mass));
+            A.push(new Matter((ghost_matter.x-pov.x)/scale +pov.x, (ghost_matter.y-pov.y)/scale +pov.y, ghost_matter.mass));    //[!] transform x,y coord to adapt for scaling (as we do on drawing)
+        }
+        ghost_matter = null;
+    }
+}
+
+function onMouseWheel(e)
+{
+    //let d = e.deltaY;
+    if(e.deltaY > 0)
+        zoomOut();
+    else if(e.deltaY < 0)
+        zoomIn();
+}
+
+function onInputMassChange()
+{
+    document.getElementById('input_mass_label').innerHTML = parseInt(input_mass.value);
+}
+
+function onKeyDown(e)
+{
+    if(e.keyCode == 71)         //g
+        g_ON = !g_ON;
+    else if(e.keyCode == 80)    //p
+        pause = !pause;
+    else if(e.keyCode == 73)    //i
+        toggleImpulse();
+    else if(e.keyCode == 38)    //arrow up
+        onUp();
+    else if(e.keyCode == 40)    //arrow down
+        onDown();
+    else if(e.keyCode == 16)    //lft shift
+        onShft(true);
+    else if(e.keyCode == 32)    //space
+    {
+        resetPOV();
+        if(shft)    reset();
+    }
+    //else if(e.keyCode == )
+
+}
+
+function onKeyUp(e)
+{
+    if(e.keyCode == 16)    //lft shift
+        onShft(false);
+}
+
+// TODO: find a way to re set scale but place point of view over most concentration of mass
+function resetPOV(){ scale = 1; }
+
+function reset()
+{
+    resetPOV();
+    A = [];
+}
+
+
+
+var shftToggleImpulse = false;
+
+function toggleImpulse(b = false)
+{
+    input_impulse.checked = !input_impulse.checked;
+    if(input_impulse.checked)   ghost_matter_initial = {x:mouse.x, y:mouse.y};
+
+    shftToggleImpulse = b;
+}
+
+function onShft(b)
+{
+    shft = b;
+    if(shft){
+        if(!input_impulse.checked)
+            toggleImpulse(true);
+    }else{
+        if(shftToggleImpulse)
+            if(input_impulse.checked)
+                toggleImpulse(false);
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*
+  # Classes
+
+  */
+
+function Matter(x, y, mass, force_x=0, force_y=0)
+{
+    [this.x,this.y,this.mass,this.fX,this.fY,this.vX,this.vY] = [x,y,mass,force_x,force_y,0,0];
+    
+    this.r = Math.sqrt(this.mass/Math.PI);
+
+    this.update = function(){
+        //vel depends on forces actuating on object ..more like acceleration? i mean, call it acc rather than vel?
+        this.vX += this.fX;
+        this.vY += this.fY;
+
+        //force applied
+        this.fX = 0;
+        this.fY = 0;
+
+        //          inertia
+        this.x += this.vX / this.mass;
+        this.y -= this.vY / this.mass;
+
+        //friction
+        this.vX *= miu;
+        this.vY *= miu;  
+    }
+
+    this.impulse = function(impulse_x, impulse_y){
+        this.vX += impulse_x;
+        this.vY += impulse_y;
+    }
+
+    this.draw = function()
+    {
+        ctx.save();
+
+        ctx.translate(pov.x, pov.y);
+        ctx.scale(scale, scale);
+        ctx.translate(-pov.x, -pov.y);
+
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.r, 0, 2*Math.PI);
+        ctx.stroke();
+        
+        ctx.restore();
+    }
+}
+
+
+
+function GhostMatter(x, y, mass)
+{
+    [this.x, this.y, this.mass] = [x, y, mass];
+
+    this.r = Math.sqrt(this.mass/Math.PI);
+
+    this.draw = function(){
+        ctx.save();
+
+        ctx.translate(pov.x, pov.y);
+        ctx.scale(scale, scale);
+        ctx.translate(-pov.x, -pov.y);
+
+        ctx.strokeStyle = '#888888';
+        ctx.beginPath();
+        ctx.arc((this.x-pov.x)/scale +pov.x, (this.y-pov.y)/scale +pov.y, this.r, 0, 2*Math.PI);
+        ctx.stroke();
+
+        if(input_impulse.checked)
+        {
+            ctx.strokeStyle = '#cfcfcf';
+            ctx.beginPath();
+            ctx.moveTo((ghost_matter_initial.x-pov.x)/scale +pov.x, (ghost_matter_initial.y-pov.y)/scale +pov.y);
+            ctx.lineTo((this.x-pov.x)/scale +pov.x, (this.y-pov.y)/scale +pov.y);
+            ctx.stroke();
+            //ctx.strokeStyle = '#000000';
+            /*
+            let angle = angleAtoB(ghost_matter_initial, this);
+            angle += Math.PI/2;
+            ctx.beginPath();
+            ctx.moveTo(this.x, this.y);
+            ctx.lineTo(Math.cos(angle)*20, Math.sin(angle)*20);
+            ctx.lineTo(Math.cos(angle)*-20, Math.sin(angle)*-20);
+            ctx.stroke();*/
+        }
+        //ctx.strokeStyle = '#000000';
+        ctx.restore();
+    }
+
+    this.update = function(){
+        this.x = mouse.x;
+        this.y = mouse.y;
+    }
+
+    this.updateMass = function(m){
+        this.mass = m;
+        this.r = Math.sqrt(this.mass/Math.PI);
+    }
+}
+
+
+
+</script>
+
+
+
+
+</body>
+</html>
