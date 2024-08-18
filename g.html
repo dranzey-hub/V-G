@@ -13,7 +13,7 @@
     </div>
 
     <span>mass</span>
-    <input id='input_mass' type='range' style="width:500px; outline: none;" min='1' max='5000' value='10' onchange='onInputMassChange()'>
+    <input id='input_mass' type='range' style="width:500px; outline: none;" min='1' max='10000' value='10' onchange='onInputMassChange()'>
     <label id='input_mass_label' for='input_mass'>10</label>
     <input id='input_impulse' type='checkbox' >
 
@@ -133,7 +133,7 @@ function gravity()  //TODO: 2+ arrays check
     {
         for (let j=i+1; j < A.length; j++) 
         {
-            //constraint distance to make it work in our pixel map, otherwise distances become either too large or too small to work here, thanks @The Coding Train!
+            //constraint distance to make it work in our pixel map, otherwise distances become either too large or too small to work here
             let d = distance(A[i], A[j]);
             if      (d>800) d = 800;
             else if (d<25)  d = 25;
@@ -199,7 +199,15 @@ function angleAtoB(a, b)
 
 
 
-//  Local
+
+
+
+
+/*  
+    listen!
+
+    */
+
 
 function onUp()
 {
@@ -231,7 +239,7 @@ function zoomOut()
 {
     if(scale > 0.1)
     {
-        scale -= 0.05;console.log(scale)
+        scale -= 0.05;
         pov.x = mouse.x; pov.y = mouse.y;
     }
 }
@@ -240,7 +248,7 @@ function zoomIn()
 {
     if(scale < 5)
     {
-        scale += 0.05;console.log(scale)
+        scale += 0.05;
         pov.x = mouse.x; pov.y = mouse.y;
     }
 }
@@ -272,16 +280,6 @@ function reScale(x, y, a=null)
     
 }*/
 
-
-
-
-
-
-
-/*  
-    listen
-
-    */
 
 document.addEventListener('mousemove', onMouseMove);
 document.addEventListener('keydown', onKeyDown);
@@ -394,8 +392,7 @@ function toggleImpulse(b = false)
 
 function onShft(b)
 {
-    shft = b;
-    if(shft){
+    if(b){
         if(!input_impulse.checked)
             toggleImpulse(true);
     }else{
@@ -455,9 +452,11 @@ function Matter(x, y, mass, force_x=0, force_y=0)
     {
         ctx.save();
 
-        ctx.translate(pov.x, pov.y);
-        ctx.scale(scale, scale);
-        ctx.translate(-pov.x, -pov.y);
+        if(scale !== 1) {
+            ctx.translate(pov.x, pov.y);
+            ctx.scale(scale, scale);
+            ctx.translate(-pov.x, -pov.y);
+        }
 
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.r, 0, 2*Math.PI);
